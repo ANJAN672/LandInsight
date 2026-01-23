@@ -1,0 +1,7 @@
+{
+  "name": "Land Insight MVP",
+  "description": "A prop-tech platform for land owners to draw property boundaries and receive AI-driven insights on risks, opportunities, and zoning.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
