@@ -54,41 +54,53 @@ const AdminPortal = ({ analyses }: { analyses: LandAnalysis[] }) => {
     { name: 'Kochi', count: 20, color: 'bg-green-500', ha: '95.8' },
   ];
 
-  // Matrix Processing for Heatmap
-  const matrixCategories = ['Residential', 'Commercial', 'Agricultural'];
-  const matrixRegions = ['Bangalore', 'Chennai', 'Kochi'];
+  // Heatmap: Land Parcel Size Distribution by Region
+  const sizeCategories = ['< 0.5 HA', '0.5-2 HA', '> 2 HA'];
+  const regions = ['Bangalore', 'Chennai', 'Kochi'];
 
-  const getMatrixData = () => {
-    // Initialize 3x3 grid
-    const grid = matrixRegions.map(() => matrixCategories.map(() => 0));
+  const getHeatmapData = () => {
+    // Initialize 3x3 grid [region][size]
+    const grid = regions.map(() => sizeCategories.map(() => 0));
+
+    // Calculate total area per cell for intensity
+    const areaGrid = regions.map(() => sizeCategories.map(() => 0));
 
     analyses.forEach(a => {
-      // Determine Region roughly based on mock logic
-      const lng = a.coordinates[0]?.lng;
+      // Determine Region based on longitude
+      const lng = a.coordinates[0]?.lng || 77.5;
       let rIndex = 0;
-      if (lng > 79) rIndex = 1; // Chennai
-      else if (lng < 77) rIndex = 2; // Kochi
-      else rIndex = 0; // Bangalore
+      if (lng > 79) rIndex = 1;      // Chennai (east)
+      else if (lng < 77) rIndex = 2; // Kochi (west)
+      else rIndex = 0;               // Bangalore (center)
 
-      // Determine Category
-      const goal = a.context?.goal || '';
-      let cIndex = 0;
-      if (goal.includes('Commercial')) cIndex = 1;
-      if (goal.includes('Agricultural')) cIndex = 2;
+      // Determine Size Category (in hectares)
+      const ha = a.areaSqMeters / 10000;
+      let sIndex = 0;
+      if (ha < 0.5) sIndex = 0;
+      else if (ha <= 2) sIndex = 1;
+      else sIndex = 2;
 
-      grid[rIndex][cIndex]++;
+      grid[rIndex][sIndex]++;
+      areaGrid[rIndex][sIndex] += ha;
     });
-    return grid;
+
+    return { counts: grid, areas: areaGrid };
   };
 
-  const matrixData = getMatrixData();
-  const maxVal = Math.max(...matrixData.flat(), 1);
+  const heatmapData = getHeatmapData();
+  const maxCount = Math.max(...heatmapData.counts.flat(), 1);
 
-  const getCellColor = (val: number) => {
-    const intensity = val / maxVal;
-    if (intensity < 0.3) return 'bg-emerald-500'; // Low
-    if (intensity < 0.7) return 'bg-amber-400';   // Medium
-    return 'bg-rose-500';                         // High
+  // Python seaborn-style color scale (blues)
+  const getCellStyle = (count: number) => {
+    const intensity = count / maxCount;
+    // Gradient from light blue to dark blue
+    const opacity = 0.15 + (intensity * 0.85);
+    const bgColor = intensity < 0.3
+      ? `rgba(59, 130, 246, ${opacity})`
+      : intensity < 0.6
+        ? `rgba(37, 99, 235, ${opacity})`
+        : `rgba(29, 78, 216, ${opacity})`;
+    return { backgroundColor: bgColor };
   };
 
   return (
@@ -121,7 +133,7 @@ const AdminPortal = ({ analyses }: { analyses: LandAnalysis[] }) => {
               { label: 'Intelligence Feed', val: `${analyses.length} Reports`, sub: 'Active spatial insights', color: 'text-green-500' }
             ].map((stat, i) => (
               <div key={i} className="bg-white p-8 rounded-[32px] border border-gray-100 shadow-sm hover:shadow-xl transition-all group cursor-default">
-                <span className={`text-[8px] font-black ${stat.color} uppercase tracking-widest mb-4 block group-hover:translate-x-1 transition-transform`}>{stat.label}</span>
+                <span className={`text-[8px] font-black ${stat.color} uppercase tracking-widest mb-4 block`}>{stat.label}</span>
                 <div className="text-4xl font-black text-gray-900 tracking-tighter mb-2">{stat.val}</div>
                 <p className="text-[10px] text-gray-400 font-bold italic leading-relaxed">{stat.sub}</p>
               </div>
@@ -129,65 +141,73 @@ const AdminPortal = ({ analyses }: { analyses: LandAnalysis[] }) => {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 bg-white rounded-[40px] p-10 relative overflow-hidden h-[450px] shadow-sm border border-gray-100">
-              <div className="flex justify-between items-start mb-8">
+            {/* Heatmap Card */}
+            <div className="lg:col-span-2 bg-white rounded-3xl p-8 shadow-sm border border-gray-100">
+              <div className="flex justify-between items-start mb-6">
                 <div>
-                  <h4 className="text-2xl font-black tracking-tighter mb-1 text-gray-900 uppercase italic">Regional Analysis Matrix</h4>
-                  <p className="text-[10px] text-gray-400 font-black uppercase tracking-[0.3em]">
-                    Requests by Region & Type
-                  </p>
+                  <h4 className="text-lg font-black text-gray-900 tracking-tight">Parcel Size Distribution</h4>
+                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">by Region (count of analyses)</p>
                 </div>
-                {/* Legend */}
-                <div className="flex items-center gap-4 bg-gray-50 p-2 rounded-xl border border-gray-100">
-                  <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-emerald-500 rounded"></div><span className="text-[9px] font-bold text-gray-500 uppercase">Low</span></div>
-                  <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-amber-400 rounded"></div><span className="text-[9px] font-bold text-gray-500 uppercase">Med</span></div>
-                  <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-rose-500 rounded"></div><span className="text-[9px] font-bold text-gray-500 uppercase">High</span></div>
+                {/* Gradient Legend */}
+                <div className="flex items-center gap-2">
+                  <span className="text-[8px] font-bold text-gray-400 uppercase">Low</span>
+                  <div className="flex h-3 rounded overflow-hidden">
+                    <div className="w-6" style={{ backgroundColor: 'rgba(59, 130, 246, 0.2)' }}></div>
+                    <div className="w-6" style={{ backgroundColor: 'rgba(59, 130, 246, 0.5)' }}></div>
+                    <div className="w-6" style={{ backgroundColor: 'rgba(29, 78, 216, 0.9)' }}></div>
+                  </div>
+                  <span className="text-[8px] font-bold text-gray-400 uppercase">High</span>
                 </div>
               </div>
 
-              <div className="h-full pb-8">
-                <div className="grid grid-cols-[100px_1fr] h-full">
-                  {/* Y-Axis Labels */}
-                  <div className="flex flex-col justify-around py-6 pr-4 border-r border-gray-100">
-                    {matrixRegions.map((region) => (
-                      <div key={region} className="text-right text-[11px] font-black text-gray-500 uppercase tracking-widest">{region}</div>
-                    ))}
-                  </div>
-
-                  {/* Matrix Grid */}
-                  <div className="flex flex-col h-full">
-                    {/* Grid Data */}
-                    <div className="flex-1 flex flex-col justify-around py-2 pl-4">
-                      {matrixRegions.map((_, rIndex) => (
-                        <div key={rIndex} className="flex gap-4 h-16">
-                          {matrixCategories.map((_, cIndex) => {
-                            const val = matrixData[rIndex][cIndex];
-                            return (
-                              <div key={cIndex} className={`flex-1 rounded-lg ${getCellColor(val)} flex items-center justify-center text-white font-black text-xl shadow-sm transition-transform hover:scale-105 group relative`}>
-                                {val}
-                                <div className="absolute opacity-0 group-hover:opacity-100 bg-black text-white text-[8px] p-1 rounded -top-8 transition-opacity whitespace-nowrap z-10 pointer-events-none">
-                                  {matrixRegions[rIndex]} - {matrixCategories[cIndex]}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* X-Axis Labels */}
-                    <div className="flex pl-4 pt-4 border-t border-gray-100">
-                      {matrixCategories.map((cat) => (
-                        <div key={cat} className="flex-1 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest">{cat}</div>
-                      ))}
-                    </div>
-                  </div>
+              {/* Heatmap Grid */}
+              <div className="mt-4">
+                {/* Header Row */}
+                <div className="grid grid-cols-4 gap-2 mb-2">
+                  <div></div>
+                  {sizeCategories.map((cat) => (
+                    <div key={cat} className="text-center text-[10px] font-black text-gray-500 uppercase py-2">{cat}</div>
+                  ))}
                 </div>
+
+                {/* Data Rows */}
+                {regions.map((region, rIndex) => (
+                  <div key={region} className="grid grid-cols-4 gap-2 mb-2">
+                    <div className="flex items-center justify-end pr-4">
+                      <span className="text-[11px] font-black text-gray-600 uppercase">{region}</span>
+                    </div>
+                    {sizeCategories.map((_, sIndex) => {
+                      const count = heatmapData.counts[rIndex][sIndex];
+                      const totalHa = heatmapData.areas[rIndex][sIndex];
+                      return (
+                        <div
+                          key={sIndex}
+                          className="h-20 rounded-lg flex flex-col items-center justify-center cursor-default group relative transition-transform hover:scale-[1.02]"
+                          style={getCellStyle(count)}
+                        >
+                          <span className="text-2xl font-black text-white drop-shadow-sm">{count}</span>
+                          <span className="text-[9px] font-bold text-white/80">{totalHa.toFixed(1)} HA</span>
+
+                          {/* Tooltip */}
+                          <div className="absolute -top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 bg-gray-900 text-white text-[9px] font-bold px-3 py-1.5 rounded-lg whitespace-nowrap z-20 transition-opacity pointer-events-none shadow-lg">
+                            {region} • {sizeCategories[sIndex]} • {count} parcels
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+
+              {/* Summary */}
+              <div className="mt-6 pt-4 border-t border-gray-100 flex justify-between text-[10px] text-gray-400 font-bold">
+                <span>Total Parcels: {analyses.length}</span>
+                <span>Data from last 30 days</span>
               </div>
             </div>
 
             <div className="bg-white rounded-[40px] p-8 border border-gray-100 flex flex-col shadow-sm">
-              <h4 className="text-[10px] font-black text-gray-900 uppercase tracking-widest mb-8 border-b border-gray-50 pb-4">Hotspot Aggregation</h4>
+              <h4 className="text-[10px] font-black text-gray-900 uppercase tracking-widest mb-8 border-b border-gray-50 pb-4">Regional Summary</h4>
               <div className="space-y-6 flex-1">
                 {clusters.map((c, i) => (
                   <div key={i} className="flex items-center justify-between group cursor-default">
@@ -195,7 +215,7 @@ const AdminPortal = ({ analyses }: { analyses: LandAnalysis[] }) => {
                       <div className={`w-3 h-3 rounded-full ${c.color} shadow-lg shadow-current/20`}></div>
                       <div>
                         <div className="text-[11px] font-black text-gray-800">{c.name}</div>
-                        <div className="text-[9px] text-gray-400 font-bold uppercase tracking-tighter">{c.ha} HA Analyzed</div>
+                        <div className="text-[9px] text-gray-400 font-bold uppercase tracking-tighter">{c.ha} HA Total</div>
                       </div>
                     </div>
                     <div className="text-[10px] font-black text-gray-300">#{i + 1}</div>
@@ -203,7 +223,7 @@ const AdminPortal = ({ analyses }: { analyses: LandAnalysis[] }) => {
                 ))}
               </div>
               <div className="mt-8 pt-6 border-t border-gray-50">
-                <p className="text-[9px] text-gray-400 leading-relaxed font-bold italic font-serif">"Concentration is shifting towards the Kochi-Malabar corridor in the last 72 hours."</p>
+                <p className="text-[9px] text-gray-400 leading-relaxed font-bold italic">"Medium-sized parcels (0.5-2 HA) are most common across all regions."</p>
               </div>
             </div>
           </div>
@@ -211,7 +231,7 @@ const AdminPortal = ({ analyses }: { analyses: LandAnalysis[] }) => {
       )}
 
       {view === 'users' && (
-        <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden anim-fade-in">
+        <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden">
           <div className="px-10 py-8 border-b border-gray-50 flex justify-between items-center bg-gray-50/20">
             <div>
               <h3 className="text-lg font-black text-gray-900 tracking-tighter">Verified Professionals</h3>
@@ -224,17 +244,17 @@ const AdminPortal = ({ analyses }: { analyses: LandAnalysis[] }) => {
               <thead>
                 <tr>
                   <th className="px-6 py-5 text-[8px] font-black text-gray-400 uppercase tracking-[0.2em] text-center w-20">Identity</th>
-                  <th className="px-6 py-5 text-[8px] font-black text-gray-400 uppercase tracking-[0.2em]">Full Registered Name</th>
-                  <th className="px-6 py-5 text-[8px] font-black text-gray-400 uppercase tracking-[0.2em]">Contact Node</th>
-                  <th className="px-6 py-5 text-[8px] font-black text-gray-400 uppercase tracking-[0.2em]">Access Token</th>
-                  <th className="px-6 py-5 text-[8px] font-black text-gray-400 uppercase tracking-[0.2em] text-right">Activity</th>
+                  <th className="px-6 py-5 text-[8px] font-black text-gray-400 uppercase tracking-[0.2em]">Full Name</th>
+                  <th className="px-6 py-5 text-[8px] font-black text-gray-400 uppercase tracking-[0.2em]">Email</th>
+                  <th className="px-6 py-5 text-[8px] font-black text-gray-400 uppercase tracking-[0.2em]">Role</th>
+                  <th className="px-6 py-5 text-[8px] font-black text-gray-400 uppercase tracking-[0.2em] text-right">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {MOCK_USERS.map((u) => (
                   <tr key={u.id} className="hover:bg-blue-50/30 transition-all group">
                     <td className="px-6 py-6 text-center">
-                      <div className="w-10 h-10 rounded-2xl bg-gray-900 text-white flex items-center justify-center text-[10px] font-black shadow-lg group-hover:scale-110 transition-transform mx-auto">
+                      <div className="w-10 h-10 rounded-2xl bg-gray-900 text-white flex items-center justify-center text-[10px] font-black shadow-lg mx-auto">
                         {u.name?.charAt(0)}
                       </div>
                     </td>
@@ -253,7 +273,7 @@ const AdminPortal = ({ analyses }: { analyses: LandAnalysis[] }) => {
                     <td className="px-6 py-6 text-right">
                       <div className="flex items-center justify-end gap-2 px-4">
                         <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
-                        <span className="text-[9px] font-black text-gray-900 uppercase">Live Now</span>
+                        <span className="text-[9px] font-black text-gray-900 uppercase">Active</span>
                       </div>
                     </td>
                   </tr>
@@ -282,11 +302,11 @@ const AdminPortal = ({ analyses }: { analyses: LandAnalysis[] }) => {
                   <div className="flex items-center gap-3">
                     <span className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">{a.id}</span>
                     <div className="w-1 h-1 bg-gray-200 rounded-full"></div>
-                    <span className="text-[10px] font-black text-gray-300 italic">South India Cluster Node Recorded</span>
+                    <span className="text-[10px] font-black text-gray-300 italic">South India Cluster</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
-                  <button className="px-8 py-3.5 text-[10px] font-black bg-gray-900 text-white rounded-2xl hover:bg-black transition-all uppercase tracking-widest shadow-lg shadow-gray-200 active:scale-95">Audit Analysis</button>
+                  <button className="px-8 py-3.5 text-[10px] font-black bg-gray-900 text-white rounded-2xl hover:bg-black transition-all uppercase tracking-widest shadow-lg shadow-gray-200 active:scale-95">View Details</button>
                 </div>
               </div>
             ))}
