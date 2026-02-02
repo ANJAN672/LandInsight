@@ -15,19 +15,19 @@ interface MapInterfaceProps {
 
 const MapInterface: React.FC<MapInterfaceProps> = ({ onPolygonChange, onAreaChange, initialPolygon = [] }) => {
     const mapContainerRef = useRef<HTMLDivElement>(null);
-    const mapRef = useRef<any>(null);
-    const polygonRef = useRef<any>(null);
-    const satelliteLayerRef = useRef<any>(null);
-    const streetLayerRef = useRef<any>(null);
-    const locationMarkerRef = useRef<any>(null);
-    const locationCircleRef = useRef<any>(null);
-    const measurementLabelsRef = useRef<any[]>([]);
+    const mapRef = useRef<L.Map | null>(null);
+    const polygonRef = useRef<L.Polygon | null>(null);
+    const satelliteLayerRef = useRef<L.TileLayer | null>(null);
+    const streetLayerRef = useRef<L.TileLayer | null>(null);
+    const locationMarkerRef = useRef<L.Marker | null>(null);
+    const locationCircleRef = useRef<L.Circle | null>(null);
+    const measurementLabelsRef = useRef<L.Marker[]>([]);
     const drawingVerticesRef = useRef<{ lat: number, lng: number }[]>([]);
 
     const [locating, setLocating] = useState(false);
     const [mapType, setMapType] = useState<'reality' | 'clean'>('reality');
 
-    const calculateDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
+    const calculateDistance = React.useCallback((lat1: number, lng1: number, lat2: number, lng2: number): number => {
         const R = 6371000;
         const dLat = (lat2 - lat1) * Math.PI / 180;
         const dLng = (lng2 - lng1) * Math.PI / 180;
@@ -36,21 +36,21 @@ const MapInterface: React.FC<MapInterfaceProps> = ({ onPolygonChange, onAreaChan
             Math.sin(dLng / 2) * Math.sin(dLng / 2);
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         return R * c;
-    };
+    }, []);
 
-    const formatDistance = (meters: number): string => {
+    const formatDistance = React.useCallback((meters: number): string => {
         if (meters >= 1000) return `${(meters / 1000).toFixed(2)} km`;
         return `${meters.toFixed(1)} m`;
-    };
+    }, []);
 
-    const clearMeasurementLabels = () => {
+    const clearMeasurementLabels = React.useCallback(() => {
         measurementLabelsRef.current.forEach(label => {
             if (mapRef.current && label) mapRef.current.removeLayer(label);
         });
         measurementLabelsRef.current = [];
-    };
+    }, []);
 
-    const createMeasurementLabel = (p1: { lat: number, lng: number }, p2: { lat: number, lng: number }) => {
+    const createMeasurementLabel = React.useCallback((p1: { lat: number, lng: number }, p2: { lat: number, lng: number }) => {
         if (!mapRef.current) return;
         const midLat = (p1.lat + p2.lat) / 2;
         const midLng = (p1.lng + p2.lng) / 2;
@@ -76,17 +76,17 @@ const MapInterface: React.FC<MapInterfaceProps> = ({ onPolygonChange, onAreaChan
             }),
             interactive: false,
             zIndexOffset: 1000
-        } as any).addTo(mapRef.current);
+        }).addTo(mapRef.current);
 
         measurementLabelsRef.current.push(label);
         return distance;
-    };
+    }, [calculateDistance, formatDistance]);
 
-    const updateMeasurementLabels = (layer: any) => {
+    const updateMeasurementLabels = React.useCallback((layer: L.Polygon) => {
         if (!mapRef.current || !layer || typeof layer.getLatLngs !== 'function') return;
         clearMeasurementLabels();
-        const latlngs = layer.getLatLngs();
-        const coords = Array.isArray(latlngs[0]) ? latlngs[0] : latlngs;
+        const latlngs = layer.getLatLngs() as L.LatLng[] | L.LatLng[][];
+        const coords = Array.isArray(latlngs[0]) ? (latlngs[0] as L.LatLng[]) : (latlngs as L.LatLng[]);
         if (!coords || coords.length < 2) return;
 
         for (let i = 0; i < coords.length; i++) {
@@ -113,179 +113,12 @@ const MapInterface: React.FC<MapInterfaceProps> = ({ onPolygonChange, onAreaChan
                 }),
                 interactive: false,
                 zIndexOffset: 1000
-            } as any).addTo(mapRef.current);
+            }).addTo(mapRef.current);
             measurementLabelsRef.current.push(label);
         }
-    };
+    }, [calculateDistance, formatDistance, clearMeasurementLabels]);
 
-    useEffect(() => {
-        if (!mapContainerRef.current || mapRef.current) return;
-
-        const karnatakaCenter: [number, number] = [12.9716, 77.5946];
-        mapRef.current = L.map(mapContainerRef.current, {
-            zoomControl: false,
-            attributionControl: false,
-        }).setView(karnatakaCenter, 14);
-
-        satelliteLayerRef.current = L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
-            maxZoom: 20,
-            subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
-        } as any);
-
-        streetLayerRef.current = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
-            maxZoom: 20,
-            subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
-        } as any);
-
-        (mapType === 'reality' ? satelliteLayerRef.current : streetLayerRef.current).addTo(mapRef.current);
-
-        (mapRef.current as any).pm.setGlobalOptions({
-            allowSelfIntersection: false,
-            snappable: true,
-            snapDistance: 20,
-            finishOn: 'dblclick',
-            cursorMarker: true,
-            editable: true,
-            templineStyle: { color: '#3b82f6', weight: 2 },
-            hintlineStyle: { color: '#3b82f6', dashArray: '5,5', weight: 1 },
-        });
-
-        (mapRef.current as any).pm.addControls({
-            position: 'topleft',
-            drawMarker: false,
-            drawCircleMarker: false,
-            drawPolyline: true,
-            drawRectangle: true,
-            drawPolygon: true,
-            editMode: true,
-            dragMode: true,
-            removalMode: true,
-        });
-
-        const attachEvents = (layer: any) => {
-            const events = ['pm:edit', 'pm:dragend', 'pm:vertexadded', 'pm:vertexremoved', 'pm:markerdragend'];
-            events.forEach(evt => {
-                layer.on(evt, () => updateMetrics(layer));
-            });
-        };
-
-        if (initialPolygon.length >= 3) {
-            const latlngs = initialPolygon.map(p => [p.lat, p.lng]);
-            const restored = L.polygon(latlngs as any, { color: '#3b82f6', fillOpacity: 0.25 }).addTo(mapRef.current);
-            polygonRef.current = restored;
-            attachEvents(restored);
-            updateMeasurementLabels(restored);
-            mapRef.current.fitBounds(restored.getBounds(), { padding: [50, 50] });
-        }
-
-        mapRef.current.on('pm:drawstart', (e: any) => {
-            drawingVerticesRef.current = [];
-            clearMeasurementLabels();
-            const workingLayer = e.workingLayer;
-            if (workingLayer) {
-                workingLayer.on('pm:vertexadded', (evt: any) => {
-                    const latlngs = workingLayer.getLatLngs();
-                    const coords = Array.isArray(latlngs[0]) ? latlngs[0] : latlngs;
-                    if (coords.length > 0) {
-                        const latestCoord = coords[coords.length - 1];
-                        const newVertex = { lat: latestCoord.lat, lng: latestCoord.lng };
-                        if (drawingVerticesRef.current.length > 0) {
-                            const prevVertex = drawingVerticesRef.current[drawingVerticesRef.current.length - 1];
-                            if (prevVertex.lat !== newVertex.lat || prevVertex.lng !== newVertex.lng) {
-                                createMeasurementLabel(prevVertex, newVertex);
-                            }
-                        }
-                        if (!drawingVerticesRef.current.some(v => v.lat === newVertex.lat && v.lng === newVertex.lng)) {
-                            drawingVerticesRef.current.push(newVertex);
-                        }
-                    }
-                });
-            }
-        });
-
-        mapRef.current.on('pm:create', (e: any) => {
-            if (polygonRef.current && polygonRef.current !== e.layer) {
-                mapRef.current.removeLayer(polygonRef.current);
-            }
-            polygonRef.current = e.layer;
-            attachEvents(e.layer);
-            updateMetrics(e.layer);
-            clearMeasurementLabels();
-            updateMeasurementLabels(e.layer);
-        });
-
-        mapRef.current.on('pm:remove', (e: any) => {
-            if (e.layer === polygonRef.current) {
-                polygonRef.current = null;
-                clearMeasurementLabels();
-                onPolygonChange([]);
-                onAreaChange(0);
-            }
-        });
-
-        return () => {
-            clearMeasurementLabels();
-            if (mapRef.current) {
-                mapRef.current.remove();
-                mapRef.current = null;
-            }
-        };
-    }, []);
-
-    // Handle initialPolygon changes (for loading saved parcels)
-    useEffect(() => {
-        if (!mapRef.current) return;
-
-        // Always remove existing polygon and labels when initialPolygon changes
-        if (polygonRef.current) {
-            mapRef.current.removeLayer(polygonRef.current);
-            polygonRef.current = null;
-            clearMeasurementLabels();
-        }
-
-        if (initialPolygon.length < 3) {
-            // If we're resetting to empty, also notify parent just in case
-            // (though parents usually trigger this change)
-            return;
-        }
-
-        const latlngs = initialPolygon.map(p => [p.lat, p.lng]);
-        const restored = L.polygon(latlngs as any, { color: '#3b82f6', fillOpacity: 0.25 }).addTo(mapRef.current);
-        polygonRef.current = restored;
-
-        // Attach edit events
-        const events = ['pm:edit', 'pm:dragend', 'pm:vertexadded', 'pm:vertexremoved', 'pm:markerdragend'];
-        events.forEach(evt => {
-            restored.on(evt, () => updateMetrics(restored));
-        });
-
-        updateMeasurementLabels(restored);
-        mapRef.current.fitBounds(restored.getBounds(), { padding: [50, 50] });
-    }, [initialPolygon]);
-
-    useEffect(() => {
-        if (!mapRef.current) return;
-        if (mapType === 'reality') {
-            if (streetLayerRef.current) mapRef.current.removeLayer(streetLayerRef.current);
-            satelliteLayerRef.current.addTo(mapRef.current);
-        } else {
-            if (satelliteLayerRef.current) mapRef.current.removeLayer(satelliteLayerRef.current);
-            streetLayerRef.current.addTo(mapRef.current);
-        }
-    }, [mapType]);
-
-    const updateMetrics = (layer: any) => {
-        if (!layer || typeof layer.getLatLngs !== 'function') return;
-        const latlngs = layer.getLatLngs();
-        const actual = Array.isArray(latlngs[0]) ? latlngs[0] : latlngs;
-        const points = actual.map((ll: any) => ({ lat: ll.lat, lng: ll.lng }));
-        const area = calculatePolygonArea(actual);
-        onPolygonChange(points);
-        onAreaChange(area);
-        updateMeasurementLabels(layer);
-    };
-
-    const calculatePolygonArea = (coords: any[]) => {
+    const calculatePolygonArea = React.useCallback((coords: L.LatLng[]) => {
         if (coords.length < 3) return 0;
         const toRad = (deg: number) => deg * Math.PI / 180;
         const avgLat = coords.reduce((sum, c) => sum + c.lat, 0) / coords.length;
@@ -307,13 +140,181 @@ const MapInterface: React.FC<MapInterfaceProps> = ({ onPolygonChange, onAreaChan
             area += (x1 * y2) - (x2 * y1);
         }
         return Math.abs(area / 2);
+    }, []);
+
+    const updateMetrics = React.useCallback((layer: L.Polygon) => {
+        if (!layer || typeof layer.getLatLngs !== 'function') return;
+        const latlngs = layer.getLatLngs() as L.LatLng[] | L.LatLng[][];
+        const actual = Array.isArray(latlngs[0]) ? (latlngs[0] as L.LatLng[]) : (latlngs as L.LatLng[]);
+        const points = actual.map((ll) => ({ lat: ll.lat, lng: ll.lng }));
+        const area = calculatePolygonArea(actual);
+        onPolygonChange(points);
+        onAreaChange(area);
+        updateMeasurementLabels(layer);
+    }, [calculatePolygonArea, onPolygonChange, onAreaChange, updateMeasurementLabels]);
+
+    useEffect(() => {
+        if (!mapContainerRef.current || mapRef.current) return;
+
+        const karnatakaCenter: [number, number] = [12.9716, 77.5946];
+        mapRef.current = L.map(mapContainerRef.current, {
+            zoomControl: false,
+            attributionControl: false,
+        }).setView(karnatakaCenter, 14);
+
+        satelliteLayerRef.current = L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+                maxZoom: 20,
+                subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+            });
+
+        streetLayerRef.current = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+            maxZoom: 20,
+            subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+        });
+
+        (mapType === 'reality' ? satelliteLayerRef.current : streetLayerRef.current).addTo(mapRef.current);
+
+        (mapRef.current as L.Map & { pm: { setGlobalOptions: (options: Record<string, unknown>) => void } }).pm.setGlobalOptions({
+            allowSelfIntersection: false,
+            snappable: true,
+            snapDistance: 20,
+            finishOn: 'dblclick',
+            cursorMarker: true,
+            editable: true,
+            templineStyle: { color: '#3b82f6', weight: 2 },
+            hintlineStyle: { color: '#3b82f6', dashArray: '5,5', weight: 1 },
+        });
+
+        (mapRef.current as L.Map & { pm: { addControls: (options: Record<string, unknown>) => void } }).pm.addControls({
+            position: 'topleft',
+            drawMarker: false,
+            drawCircleMarker: false,
+            drawPolyline: true,
+            drawRectangle: true,
+            drawPolygon: true,
+            editMode: true,
+            dragMode: true,
+            removalMode: true,
+        });
+
+        const attachEvents = (layer: L.Polygon) => {
+        const events = ['pm:edit', 'pm:dragend', 'pm:vertexadded', 'pm:vertexremoved', 'pm:markerdragend'];
+        events.forEach(evt => {
+            layer.on(evt, () => updateMetrics(layer));
+        });
     };
+
+        if (initialPolygon.length >= 3) {
+            const latlngs = initialPolygon.map(p => [p.lat, p.lng]);
+            const restored = L.polygon(latlngs as L.LatLngExpression[], { color: '#3b82f6', fillOpacity: 0.25 }).addTo(mapRef.current);
+            polygonRef.current = restored;
+            attachEvents(restored);
+            updateMeasurementLabels(restored);
+            mapRef.current.fitBounds(restored.getBounds(), { padding: [50, 50] });
+        }
+
+        mapRef.current.on('pm:drawstart', (e: { workingLayer?: L.Layer }) => {
+            drawingVerticesRef.current = [];
+            clearMeasurementLabels();
+            const workingLayer = e.workingLayer as L.Polygon | undefined;
+            if (workingLayer) {
+                workingLayer.on('pm:vertexadded', () => {
+                    const latlngs = workingLayer.getLatLngs();
+                    const coords = Array.isArray(latlngs[0]) ? latlngs[0] : latlngs;
+                    if (coords.length > 0) {
+                        const latestCoord = coords[coords.length - 1];
+                        const newVertex = { lat: latestCoord.lat, lng: latestCoord.lng };
+                        if (drawingVerticesRef.current.length > 0) {
+                            const prevVertex = drawingVerticesRef.current[drawingVerticesRef.current.length - 1];
+                            if (prevVertex.lat !== newVertex.lat || prevVertex.lng !== newVertex.lng) {
+                                createMeasurementLabel(prevVertex, newVertex);
+                            }
+                        }
+                        if (!drawingVerticesRef.current.some(v => v.lat === newVertex.lat && v.lng === newVertex.lng)) {
+                            drawingVerticesRef.current.push(newVertex);
+                        }
+                    }
+                });
+            }
+        });
+
+        mapRef.current.on('pm:create', (e: { layer: L.Polygon }) => {
+            if (polygonRef.current && polygonRef.current !== e.layer) {
+                mapRef.current.removeLayer(polygonRef.current);
+            }
+            polygonRef.current = e.layer;
+            attachEvents(e.layer);
+            updateMetrics(e.layer);
+            clearMeasurementLabels();
+            updateMeasurementLabels(e.layer);
+        });
+
+        mapRef.current.on('pm:remove', (e: { layer: L.Layer }) => {
+            if (e.layer === polygonRef.current) {
+                polygonRef.current = null;
+                clearMeasurementLabels();
+                onPolygonChange([]);
+                onAreaChange(0);
+            }
+        });
+
+        return () => {
+            clearMeasurementLabels();
+            if (mapRef.current) {
+                mapRef.current.remove();
+                mapRef.current = null;
+            }
+        };
+    }, [calculatePolygonArea, createMeasurementLabel, initialPolygon, mapType, onAreaChange, onPolygonChange, updateMeasurementLabels, updateMetrics, clearMeasurementLabels]);
+
+    // Handle initialPolygon changes (for loading saved parcels)
+    useEffect(() => {
+        if (!mapRef.current) return;
+
+        // Always remove existing polygon and labels when initialPolygon changes
+        if (polygonRef.current) {
+            mapRef.current.removeLayer(polygonRef.current);
+            polygonRef.current = null;
+            clearMeasurementLabels();
+        }
+
+        if (initialPolygon.length < 3) {
+            // If we're resetting to empty, also notify parent just in case
+            // (though parents usually trigger this change)
+            return;
+        }
+
+        const latlngs = initialPolygon.map(p => [p.lat, p.lng]);
+        const restored = L.polygon(latlngs as L.LatLngExpression[], { color: '#3b82f6', fillOpacity: 0.25 }).addTo(mapRef.current);
+        polygonRef.current = restored;
+
+        // Attach edit events
+        const events = ['pm:edit', 'pm:dragend', 'pm:vertexadded', 'pm:vertexremoved', 'pm:markerdragend'];
+        events.forEach(evt => {
+            restored.on(evt, () => updateMetrics(restored));
+        });
+
+        updateMeasurementLabels(restored);
+        mapRef.current.fitBounds(restored.getBounds(), { padding: [50, 50] });
+    }, [initialPolygon, updateMeasurementLabels, updateMetrics, clearMeasurementLabels]);
+
+    useEffect(() => {
+        if (!mapRef.current) return;
+        if (mapType === 'reality') {
+            if (streetLayerRef.current) mapRef.current.removeLayer(streetLayerRef.current);
+            satelliteLayerRef.current.addTo(mapRef.current);
+        } else {
+            if (satelliteLayerRef.current) mapRef.current.removeLayer(satelliteLayerRef.current);
+            streetLayerRef.current.addTo(mapRef.current);
+        }
+    }, [mapType]);
+
 
     const locateUser = () => {
         if (!mapRef.current) return;
         setLocating(true);
         mapRef.current.locate({ setView: true, maxZoom: 18 });
-        mapRef.current.once('locationfound', (e: any) => {
+        mapRef.current.once('locationfound', (e: { latlng: L.LatLng; accuracy: number }) => {
             setLocating(false);
             if (locationMarkerRef.current) mapRef.current.removeLayer(locationMarkerRef.current);
             if (locationCircleRef.current) mapRef.current.removeLayer(locationCircleRef.current);
@@ -324,7 +325,7 @@ const MapInterface: React.FC<MapInterfaceProps> = ({ onPolygonChange, onAreaChan
                     html: `<div class="w-4 h-4 bg-blue-600 rounded-full border-2 border-white shadow-lg animate-pulse"></div>`,
                     iconSize: [16, 16]
                 })
-            } as any).addTo(mapRef.current);
+            }).addTo(mapRef.current);
         });
         mapRef.current.once('locationerror', () => { setLocating(false); alert("Position not found."); });
     };

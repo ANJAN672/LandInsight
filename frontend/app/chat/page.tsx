@@ -6,7 +6,7 @@ import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useAuth } from '@/components/AuthProvider';
-import { getConversations, createConversation, getConversation, sendChatMessage, deleteConversation, getUserAnalysesForChat } from '@/app/actions/conversation';
+import { getConversations, createConversation, getConversation, sendChatMessage, deleteConversation, getUserAnalysesForChat } from '@/lib/api';
 
 interface Message {
     id: string;
@@ -22,12 +22,18 @@ interface Conversation {
     messages: { content: string }[];
 }
 
+interface AnalysisContext {
+    goal?: string;
+    features?: string;
+    concerns?: string;
+}
+
 interface Analysis {
     id: string;
     areaSqMeters: number;
     region: string | null;
-    context: any;
-    createdAt: Date;
+    context: AnalysisContext | null;
+    createdAt: string | Date;
 }
 
 export default function ChatPage() {
@@ -121,9 +127,10 @@ export default function ChatPage() {
             setMessages(prev => [...prev.filter(m => m.id !== userMessage.id), { ...userMessage, id: 'user-' + Date.now() }, assistantMessage]);
             loadConversations();
             setSelectedAnalysis(null);
-        } catch (err: any) {
+        } catch (err) {
             setMessages(prev => prev.filter(m => m.id !== userMessage.id));
-            alert(err.message || 'Failed to send message');
+            const message = err instanceof Error ? err.message : 'Failed to send message';
+            alert(message);
         } finally {
             setSending(false);
         }
@@ -134,7 +141,7 @@ export default function ChatPage() {
         setShowVault(false);
         const analysis = analyses.find(a => a.id === analysisId);
         if (analysis) {
-            const ctx = analysis.context as any;
+            const ctx = analysis.context;
             setInput(`Analyze my parcel in ${analysis.region || 'Unknown region'} (${(analysis.areaSqMeters / 10000).toFixed(4)} HA). Purpose: ${ctx?.goal || 'General development'}`);
         }
     };
@@ -246,7 +253,7 @@ export default function ChatPage() {
                                 ) : (
                                     <div className="grid gap-4">
                                         {analyses.map((analysis, idx) => {
-                                            const ctx = analysis.context as any;
+                                            const ctx = analysis.context;
                                             return (
                                                 <div key={analysis.id} className="bg-gray-50 p-5 rounded-2xl border border-gray-100 hover:border-blue-200 hover:shadow-md transition-all">
                                                     <div className="flex items-start justify-between mb-3">

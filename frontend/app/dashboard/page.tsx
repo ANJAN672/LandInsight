@@ -4,23 +4,30 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
-import { getUserAnalyses } from '@/app/actions/analyze';
+import { getUserAnalyses, deleteAnalysis } from '@/lib/api';
+
+interface AnalysisContext {
+    goal?: string;
+    features?: string;
+    concerns?: string;
+}
 
 interface Analysis {
     id: string;
     areaSqMeters: number;
-    coordinates: any;
-    context: any;
+    coordinates: { lat: number; lng: number }[];
+    context: AnalysisContext | null;
     insights: string;
     region: string | null;
-    createdAt: Date;
+    createdAt: string | Date;
 }
 
 export default function DashboardPage() {
     const { user, loading: authLoading } = useAuth();
     const router = useRouter();
     const [analyses, setAnalyses] = useState<Analysis[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
+    const [hasLoaded, setHasLoaded] = useState(false);
     const [activeTab, setActiveTab] = useState<'parcels' | 'insights'>('parcels');
     const [expandedAnalysis, setExpandedAnalysis] = useState<string | null>(null);
 
@@ -30,18 +37,21 @@ export default function DashboardPage() {
         }
     }, [user, authLoading, router]);
 
-    useEffect(() => {
-        if (user) {
-            loadAnalyses();
-        }
-    }, [user]);
-
     const loadAnalyses = async () => {
         setLoading(true);
         const data = await getUserAnalyses();
         setAnalyses(data as Analysis[]);
         setLoading(false);
     };
+
+    useEffect(() => {
+        if (user && !hasLoaded) {
+            setHasLoaded(true);
+            setTimeout(() => {
+                void loadAnalyses();
+            }, 0);
+        }
+    }, [user, hasLoaded]);
 
     if (authLoading || !user) {
         return (
@@ -167,7 +177,7 @@ export default function DashboardPage() {
                                                 Parcel {idx + 1}
                                             </span>
                                             <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">
-                                                {new Date(analysis.createdAt).toLocaleDateString('en-IN', {
+                                                    {new Date(analysis.createdAt).toLocaleDateString('en-IN', {
                                                     day: 'numeric',
                                                     month: 'short',
                                                     year: 'numeric'
@@ -183,7 +193,7 @@ export default function DashboardPage() {
                                             {analysis.context?.goal || 'Land Analysis'}
                                         </h3>
                                         <p className="text-[11px] text-gray-500 line-clamp-2">
-                                            {analysis.insights.slice(0, 150)}...
+                                                    {analysis.insights.slice(0, 150)}...
                                         </p>
                                     </div>
                                     <div className="flex items-center gap-4">
@@ -223,7 +233,6 @@ export default function DashboardPage() {
                                                 onClick={async (e) => {
                                                     e.stopPropagation();
                                                     if (confirm('Are you sure you want to delete this parcel?')) {
-                                                        const { deleteAnalysis } = await import('@/app/actions/analyze');
                                                         await deleteAnalysis(analysis.id);
                                                         loadAnalyses();
                                                     }

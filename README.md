@@ -10,23 +10,62 @@ LandInsight helps you turn raw land shapes into actionable wealth reports. Draw 
 
 ---
 
-## � Getting Started
+## ✅ Repo Structure
 
-1. **Install**: `npm install`
-2. **Setup**: Add your `DATABASE_URL` and `GEMINI_API_KEY` to your `.env` file.
-3. **Run**: `npm run dev`
+```
+LandInsight/
+├─ frontend/   # Next.js UI
+├─ backend/    # Express REST API + Prisma
+```
+
+---
+
+## 🚀 Local Setup (pgAdmin / PostgreSQL)
+
+### 1. Configure `.env` in backend/
+
+```
+DATABASE_URL=postgresql://<user>:<password>@localhost:5432/landinsight
+GEMINI_API_KEY=your_gemini_key
+JWT_SECRET=your_secret
+FRONTEND_ORIGIN=http://localhost:3000
+```
+
+### 2. Backend
+
+```
+cd backend
+npm install
+npx prisma generate
+npx prisma db push
+npm run dev
+```
+
+### 3. Frontend
+
+```
+cd frontend
+npm install
+npm run dev
+```
+
+### Optional: Set API base URL
+
+Frontend uses `NEXT_PUBLIC_API_BASE_URL` to reach Express:
+
+```
+NEXT_PUBLIC_API_BASE_URL=http://localhost:4000
+```
 
 ---
 
 ## 📚 Project Documentation
 
-For detailed technical drafts and development insights, please see our dedicated documentation:
-
 - 🏗 [Architecture Overview](./docs/architecture.md)
 - 🛠 [Tech Stack Details](./docs/tech_stack.md)
 - 🌊 [User & Data Flow](./docs/flow.md)
 - 🛠 [Errors & Fixes Log](./docs/errors_fixes.md)
-- � [Simple Explanation](./docs/explanation.md)
+- 💡 [Simple Explanation](./docs/explanation.md)
 
 ---
 

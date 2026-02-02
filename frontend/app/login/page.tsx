@@ -18,8 +18,9 @@ export default function LoginPage() {
         try {
             await login(email, password);
             router.push('/dashboard');
-        } catch (err: any) {
-            setError(err.message || 'Login failed');
+        } catch (err) {
+            const message = err instanceof Error ? err.message : 'Login failed';
+            setError(message);
         }
     };
 
@@ -86,7 +87,7 @@ export default function LoginPage() {
 
                     <div className="mt-8 pt-6 border-t border-gray-50 text-center">
                         <p className="text-[11px] text-gray-400">
-                            Don't have an account?{' '}
+                            Don&apos;t have an account?{' '}
                             <Link href="/register" className="font-bold text-blue-600 hover:text-blue-700">
                                 Create Account
                             </Link>

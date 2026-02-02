@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { registerUser, loginUser, logoutUser } from '@/app/actions/auth';
+import { registerUser, loginUser, logoutUser, getCurrentUser } from '@/lib/api';
 
 interface User {
     id: string;
@@ -27,13 +27,8 @@ export function AuthProvider({ children, initialUser }: { children: React.ReactN
 
     const refreshUser = useCallback(async () => {
         try {
-            const res = await fetch('/api/auth/me');
-            if (res.ok) {
-                const data = await res.json();
-                setUser(data.user);
-            } else {
-                setUser(null);
-            }
+            const currentUser = await getCurrentUser();
+            setUser(currentUser);
         } catch {
             setUser(null);
         } finally {
