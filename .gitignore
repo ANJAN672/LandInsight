@@ -5,7 +5,8 @@ node_modules/
 .yarn/install-state.gz
 
 # Next.js Build Output
-/.next/
+/frontend/.next/
+/backend/dist/
 /out/
 /build/
 
