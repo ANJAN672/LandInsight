@@ -6,9 +6,7 @@ declare global {
 }
 
 const prismaClientSingleton = () => {
-    return new PrismaClient({
-        datasourceUrl: process.env.DATABASE_URL,
-    });
+    return new PrismaClient();
 };
 
 export const prisma = globalThis.prisma ?? prismaClientSingleton();

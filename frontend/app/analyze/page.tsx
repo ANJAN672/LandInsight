@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { PolygonPoint } from '@/types';
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { analyzeLandAction, saveParcelToVault, getAnalysisById } from '@/app/actions/analyze';
+import { saveParcelToVault, getAnalysisById } from '@/lib/api';
 import { useAuth } from '@/components/AuthProvider';
 
 const MapInterface = dynamic(() => import('@/components/MapInterface'), {
@@ -24,8 +24,8 @@ export default function AnalyzePage() {
     const router = useRouter();
     const [currentPolygon, setCurrentPolygon] = useState<PolygonPoint[]>([]);
     const [currentArea, setCurrentArea] = useState(0);
-    const [lastResult, setLastResult] = useState<{ report: string, sources: any[] } | null>(null);
-    const [loading, setLoading] = useState(false);
+    const [lastResult, setLastResult] = useState<{ report: string, sources: unknown[] } | null>(null);
+    const [, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
     const [unit, setUnit] = useState<'m2' | 'ha' | 'sqft' | 'acre' | 'ground' | 'cent'>('ha');
@@ -47,7 +47,7 @@ export default function AnalyzePage() {
                 try {
                     const analysis = await getAnalysisById(id);
                     if (analysis) {
-                        const coords = analysis.coordinates as unknown as PolygonPoint[];
+                        const coords = analysis.coordinates as PolygonPoint[];
                         setCurrentPolygon(coords);
                         setCurrentArea(analysis.areaSqMeters);
                         if (analysis.insights && !analysis.insights.includes('Parcel saved to Land Vault')) {
@@ -101,7 +101,7 @@ export default function AnalyzePage() {
 
     useEffect(() => {
         if (currentPolygon.length > 0) setUnit(region.unit);
-    }, [region.name]);
+    }, [currentPolygon.length, region.unit]);
 
     const handleSaveToVault = async () => {
         if (!user) {
@@ -114,8 +114,9 @@ export default function AnalyzePage() {
         try {
             await saveParcelToVault(currentArea, currentPolygon, context);
             setSaved(true);
-        } catch (e: any) {
-            alert(e.message || 'Failed to save parcel');
+        } catch (e) {
+            const message = e instanceof Error ? e.message : 'Failed to save parcel';
+            alert(message);
         } finally {
             setSaving(false);
         }

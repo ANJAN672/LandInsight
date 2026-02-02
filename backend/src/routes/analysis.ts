@@ -46,21 +46,25 @@ router.get("/:id", requireAuth, async (req: AuthenticatedRequest, res) => {
 router.post("/vault", requireAuth, async (req: AuthenticatedRequest, res) => {
   const userId = req.user?.userId;
   if (!userId) return res.status(401).json({ error: "Not authenticated" });
-  const { area, coordinates, context, name } = req.body as {
+  const { area, geojson, coordinates, context, name } = req.body as {
     area: number;
+    geojson?: { type: string; coordinates: number[][][] };
     coordinates: PolygonPoint[];
     context?: AnalysisContext;
     name?: string;
   };
-  if (!coordinates || coordinates.length < 3) {
+  const resolvedCoordinates = Array.isArray(coordinates) && coordinates.length > 0
+    ? coordinates
+    : (geojson?.coordinates?.[0] || []).map(([lng, lat]) => ({ lat, lng }));
+  if (!resolvedCoordinates || resolvedCoordinates.length < 3) {
     return res.status(400).json({ error: "A valid polygon with at least 3 points is required" });
   }
-  const region = getRegionFromCoords(coordinates);
+  const region = getRegionFromCoords(resolvedCoordinates);
   const analysis = await prisma.analysis.create({
     data: {
       userId,
       areaSqMeters: area,
-      coordinates: coordinates as any,
+      coordinates: resolvedCoordinates as any,
       context: {
         goal: context?.goal || name || "Land Parcel",
         features: context?.features || "",
@@ -77,6 +81,10 @@ router.post("/vault", requireAuth, async (req: AuthenticatedRequest, res) => {
     message: "Parcel saved to Land Vault!",
     region,
     area,
+    geojson: {
+      type: "Polygon",
+      coordinates: [[...resolvedCoordinates.map((p) => [p.lng, p.lat]), [resolvedCoordinates[0].lng, resolvedCoordinates[0].lat]]],
+    },
   });
 });
 
@@ -136,24 +144,28 @@ router.post("/generate/:id", requireAuth, async (req: AuthenticatedRequest, res)
 });
 
 router.post("/analyze", async (req, res) => {
-  const { area, coordinates, context, conversationId, userId } = req.body as {
+  const { area, coordinates, geojson, context, conversationId, userId } = req.body as {
     area: number;
+    geojson?: { type: string; coordinates: number[][][] };
     coordinates: PolygonPoint[];
     context?: AnalysisContext;
     conversationId?: string;
     userId?: string;
   };
+  const resolvedCoordinates = Array.isArray(coordinates) && coordinates.length > 0
+    ? coordinates
+    : (geojson?.coordinates?.[0] || []).map(([lng, lat]) => ({ lat, lng }));
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return res.status(500).json({ error: "GEMINI_API_KEY is not configured on the server." });
   const ai = new GoogleGenAI({ apiKey });
-  const anchor = coordinates[0];
+  const anchor = resolvedCoordinates[0];
   const prompt = `
     Perform an elite-level professional land survey and real-estate valuation for this parcel in India.
     
     Spatial Context:
     - Latitude/Longitude Anchor: ${anchor.lat}, ${anchor.lng}
     - Total Footprint: ${area.toFixed(2)} square meters (${(area * 10.7639).toFixed(2)} sq ft)
-    - Perimeter Points: ${JSON.stringify(coordinates)}
+    - Perimeter Points: ${JSON.stringify(resolvedCoordinates)}
     
     User Parameters:
     - Primary Goal: ${context?.goal || "General development and valuation"}
@@ -181,10 +193,10 @@ router.post("/analyze", async (req, res) => {
         data: {
           userId,
           areaSqMeters: area,
-          coordinates: coordinates as any,
+          coordinates: resolvedCoordinates as any,
           context: context as any,
           insights: text,
-          region: getRegionFromCoords(coordinates),
+          region: getRegionFromCoords(resolvedCoordinates),
         },
       });
       if (conversationId) {
@@ -194,7 +206,7 @@ router.post("/analyze", async (req, res) => {
               conversationId,
               role: "user",
               content: `Analyze land parcel: ${area.toFixed(2)} sqm at ${anchor.lat.toFixed(6)}, ${anchor.lng.toFixed(6)}. Goal: ${context?.goal || "General"}`,
-              metadata: { type: "analysis_request", coordinates: JSON.parse(JSON.stringify(coordinates)), area, context: context || null } as any,
+              metadata: { type: "analysis_request", coordinates: JSON.parse(JSON.stringify(resolvedCoordinates)), area, context: context || null } as any,
             },
             {
               conversationId,
@@ -227,7 +239,7 @@ router.get("/geojson/:id", requireAuth, async (req: AuthenticatedRequest, res) =
     where: { id: req.params.id, userId },
   });
   if (!analysis) return res.status(404).json({ error: "Parcel not found" });
-  const coords = analysis.coordinates as PolygonPoint[];
+  const coords = analysis.coordinates as unknown as PolygonPoint[];
   const geojson = {
     type: "Feature",
     properties: {
