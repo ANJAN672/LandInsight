@@ -60,13 +60,6 @@ Open [http://localhost:3000](http://localhost:3000) to see the app.
 
 ---
 
-## 📚 Technical Documentation
-
-For a deeper dive into the system design:
-- 🏗 **[Architecture Overview](./docs/architecture.md)**: How the frontend interacts with spatial data.
-- 🛠 **[Tech Stack](./docs/tech_stack.md)**: Detailed breakdown of choice libraries.
-- 🌊 **[User Flow](./docs/flow.md)**: Step-by-step walkthrough of the land analysis journey.
-- 🛠 **[Errors & Fixes](./docs/errors_fixes.md)**: Log of major engineering hurdles solved.
 
 ---
 
