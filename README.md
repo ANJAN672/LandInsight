@@ -1,72 +1,43 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# LandInsight Frontend 🎨
 
-# LandInsight 🏡🚀
+The user interface for LandInsight - Advanced Spatial Intelligence for Indian Real Estate.
 
-**Advanced Spatial Intelligence for Indian Real Estate.**
+## 🛠 Tech Stack
+- **Framework**: Next.js 15+ (App Router)
+- **Styling**: Tailwind CSS
+- **Maps**: Leaflet.js
+- **State Management**: React Hooks
 
-LandInsight helps you turn raw land shapes into actionable wealth reports. Draw your boundary, get AI insights on your purpose, and chat with a spatial intelligence agent to uncover the full potential of your property.
+## 🚀 Setup & Installation
 
----
+### 1. Prerequisites
+- Node.js (v18 or higher)
+- Backend server running (see `LI_Backend/README.md`)
 
-## ✅ Repo Structure
-
-```
-LandInsight/
-├─ frontend/   # Next.js UI
-├─ backend/    # Express REST API + Prisma
-```
-
----
-
-## 🚀 Local Setup (pgAdmin / PostgreSQL)
-
-### 1. Configure `.env` in backend/
-
-```
-DATABASE_URL=postgresql://<user>:<password>@localhost:5432/landinsight
-GEMINI_API_KEY=your_gemini_key
-JWT_SECRET=your_secret
-FRONTEND_ORIGIN=http://localhost:3000
-```
-
-### 2. Backend
-
-```
-cd backend
-npm install
-npx prisma generate
-npx prisma db push
-npm run dev
-```
-
-### 3. Frontend
-
-```
+### 2. Configuration
+The frontend project is located in the `frontend/` directory.
+Navigate to the directory and create a `.env` file:
+```bash
 cd frontend
+cp .env.example .env
+```
+Ensure it points to your backend:
+```env
+NEXT_PUBLIC_API_BASE_URL="http://localhost:4000"
+```
+
+### 3. Installation & Run
+```bash
 npm install
 npm run dev
 ```
+The app will be available at `http://localhost:3000`.
 
-### Optional: Set API base URL
-
-Frontend uses `NEXT_PUBLIC_API_BASE_URL` to reach Express:
-
-```
-NEXT_PUBLIC_API_BASE_URL=http://localhost:4000
-```
-
----
-
-## 📚 Project Documentation
-
-- 🏗 [Architecture Overview](./docs/architecture.md)
-- 🛠 [Tech Stack Details](./docs/tech_stack.md)
-- 🌊 [User & Data Flow](./docs/flow.md)
-- 🛠 [Errors & Fixes Log](./docs/errors_fixes.md)
-- 💡 [Simple Explanation](./docs/explanation.md)
+## 📍 Features
+- **Interactive Map**: Draw and analyze land parcels.
+- **AI Insights**: Get land usage recommendations via Gemini.
+- **Spatial Search**: Find and map real estate data in India.
+- **Reporting**: Export your findings as GeoJSON.
 
 ---
-
-*“Turning raw coordinates into actionable real estate wealth.”*
+*"Visualizing the future of Indian Real Estate."*
